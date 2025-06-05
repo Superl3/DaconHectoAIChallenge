@@ -1,0 +1,15 @@
+# config.yaml 예시
+train_root: 'C:/Users/bug95/DaconHectoAIChallenge/upscaled/train'
+test_root: 'C:/Users/bug95/DaconHectoAIChallenge/TResNet/upscaled/test'
+pretrained_weights: 'C:/Users/bug95/DaconHectoAIChallenge/stanford_cars_tresnet-l-v2_96_27.pth'
+sample_submission: 'open/sample_submission.csv'
+img_size: 368
+batch_size: 32
+epochs: 10
+learning_rate: 0.0001
+seed: 42
+num_classes: -1
+wandb:
+  entity: 'Dacon_Car'
+  project: 'car-classification'
+  name: 'TResNet'
