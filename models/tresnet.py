@@ -7,11 +7,12 @@ from src.models.tresnet_v2.tresnet_v2 import TResnetL_V2 as TResnetL368
 import torch
 import numpy as np
 import torch.nn as nn
+import torch.nn.functional as F
 
 class TResNetBackbone(nn.Module):
     def __init__(self, num_classes, weights_path=None):
         super().__init__()
-        model_params = {'num_classes': num_classes}
+        model_params = {'num_classes': 196}
         self.backbone = TResnetL368(model_params)
         if weights_path:
             pretrained_weights = torch.load(weights_path, map_location='cpu')

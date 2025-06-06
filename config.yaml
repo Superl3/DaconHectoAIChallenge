@@ -3,6 +3,7 @@ train_root: 'C:/Users/bug95/DaconHectoAIChallenge/upscaled/train'
 test_root: 'C:/Users/bug95/DaconHectoAIChallenge/TResNet/upscaled/test'
 pretrained_weights: 'C:/Users/bug95/DaconHectoAIChallenge/stanford_cars_tresnet-l-v2_96_27.pth'
 sample_submission: 'open/sample_submission.csv'
+backbone: 'tresnet_pmal'
 img_size: 368
 batch_size: 32
 epochs: 10

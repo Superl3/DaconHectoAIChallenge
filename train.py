@@ -9,7 +9,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from utils import load_config
 from seed_utils import seed_everything
-from model import TResNetBackbone, ClassificationLightningModule
+from model import get_lightning_model_from_config
 from datamodule import CarDataModule
 
 torch.set_float32_matmul_precision('medium')  # Tensor Core 최적화
@@ -37,11 +37,10 @@ def main():
     datamodule = CarDataModule(cfg, train_transform, val_transform)
     datamodule.setup()
     num_classes = len(datamodule.class_names)
-    model = TResNetBackbone(num_classes=num_classes, weights_path=cfg['pretrained_weights'])
-    model = model.to(memory_format=torch.channels_last)
-    lightning_model = ClassificationLightningModule(model, learning_rate=cfg['learning_rate'])
+   
+    lightning_model = get_lightning_model_from_config(cfg, num_classes)
     #lightning_model = torch.compile(lightning_model)
-    precision_mode = 'bf16-mixed' if torch.cuda.is_bf16_supported() else 16
+    precision_mode = '16-mixed'
 
     # --- 콜백 및 부가기능 설정 ---
     callbacks = []
@@ -78,13 +77,14 @@ def main():
         devices=1,
         log_every_n_steps=10,
         accumulate_grad_batches=cfg.get('accumulate_grad_batches', 1),
+        #num_sanity_val_steps=0
     )
 
     # Automatic Batch Size Finder
-    auto_scale_bs = cfg.get('auto_scale_batch_size', False)
+    #auto_scale_bs = cfg.get('auto_scale_batch_size', False)
 
-    if auto_scale_bs:
-        trainer.tune(lightning_model, datamodule=datamodule)
+    #if auto_scale_bs:
+    #    trainer.tune(lightning_model, datamodule=datamodule)
     trainer.fit(lightning_model, datamodule=datamodule)
 
 if __name__ == '__main__':
