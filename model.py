@@ -12,15 +12,35 @@ class ClassificationLightningModule(pl.LightningModule):
         self.save_hyperparameters(ignore=['model'])
         self.criterion = self.CELoss
         #nn.CrossEntropyLoss()
+        self.automatic_optimization = False  # <-- manual optimization 모드
 
     def forward(self, x):
         return self.model(x)
 
     def training_step(self, batch, batch_idx):
+        # images, labels = batch
+        # logits = self(images)
+        # loss = self.criterion(logits, labels).mean()
+        # acc = (logits.argmax(dim=1) == labels).float().mean()
+        # self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
+        # self.log('train_acc', acc, on_step=False, on_epoch=True, prog_bar=True)
+        # return loss
+
         images, labels = batch
-        logits = self(images)
-        loss = self.criterion(logits, labels).mean()
-        acc = (logits.argmax(dim=1) == labels).float().mean()
+        optimizer = self.optimizers()
+        # SAM step 1
+        outputs = self(images)
+        loss = self.criterion(outputs, labels).mean()
+        self.manual_backward(loss)
+        optimizer.first_step(zero_grad=True)
+
+        # SAM step 2
+        outputs2 = self(images)
+        loss2 = self.criterion(outputs2, labels).mean()
+        self.manual_backward(loss2)
+        optimizer.second_step(zero_grad=True)
+
+        acc = (outputs.argmax(dim=1) == labels).float().mean()
         self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log('train_acc', acc, on_step=False, on_epoch=True, prog_bar=True)
         return loss
@@ -35,10 +55,10 @@ class ClassificationLightningModule(pl.LightningModule):
         return {'val_loss': loss, 'val_acc': acc}
 
     def configure_optimizers(self):
-        #optimizer = SAM(self.model.parameters(),torch.optim.SGD,lr=CFG['LEARNING_RATE'],adaptive=False,momentum=0.9,weight_decay=5e-4)
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
-        #scheduler = cosine_anneal_schedule()
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2, factor=0.5, verbose=True)
+        optimizer = SAM(self.model.parameters(),torch.optim.SGD,lr=self.hparams.learning_rate,adaptive=False,momentum=0.9,weight_decay=5e-4)
+        #torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.trainer.max_epochs)
+        #torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2, factor=0.5, verbose=True)
         return {
             'optimizer': optimizer,
             'lr_scheduler': {

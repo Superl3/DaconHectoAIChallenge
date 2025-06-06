@@ -4,9 +4,10 @@ test_root: 'C:/Users/bug95/DaconHectoAIChallenge/TResNet/upscaled/test'
 pretrained_weights: 'C:/Users/bug95/DaconHectoAIChallenge/stanford_cars_tresnet-l-v2_96_27.pth'
 sample_submission: 'open/sample_submission.csv'
 backbone: 'tresnet_pmal'
-img_size: 368
+img_size: 421
+crop_size: 368
 batch_size: 32
-epochs: 10
+epochs: 30
 learning_rate: 0.0001
 seed: 42
 num_classes: -1
@@ -14,9 +15,18 @@ wandb:
   entity: 'Dacon_Car'
   project: 'car-classification'
   name: 'TResNet'
-accumulate_grad_batches: 4
 use_swa: false
 swa_lr: 1e-4
 use_ema: false
 ema_decay: 0.999
 auto_scale_batch_size: false
+
+early_stopping_monitor: val_loss
+early_stopping_patience: 3
+early_stopping_mode: min
+early_stopping_min_delta: 0.0
+
+checkpoint_monitor: val_loss
+checkpoint_save_top_k: 1
+checkpoint_mode: min
+checkpoint_filename: best_model
