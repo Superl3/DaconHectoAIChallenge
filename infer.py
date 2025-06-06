@@ -4,9 +4,9 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
-from model import TResNetBackbone, ClassificationLightningModule
 from dataset import CustomImageDataset
 from utils import load_config
+from model import get_lightning_model_from_config
 from seed_utils import seed_everything
 
 torch.set_float32_matmul_precision('medium')  # Tensor Core 최적화
@@ -26,10 +26,10 @@ def infer_and_submit():
     ])
     train_dataset = CustomImageDataset(cfg['train_root'], transform=None)
     class_names = train_dataset.classes
+    num_classes = len(class_names)
     test_dataset = CustomImageDataset(cfg['test_root'], transform=val_transform, is_test=True)
     test_loader = DataLoader(test_dataset, batch_size=cfg['batch_size'], shuffle=False, num_workers=4, pin_memory=True)
-    model = TResNetBackbone(num_classes=len(class_names))
-    lightning_model = ClassificationLightningModule(model)
+    lightning_model = get_lightning_model_from_config(cfg, num_classes)
     #lightning_model = torch.compile(lightning_model)  # PyTorch 2.x 이상에서만
     lightning_model.load_state_dict(torch.load('best_model.ckpt', map_location=device)['state_dict'], strict=False)
     lightning_model.to(device)

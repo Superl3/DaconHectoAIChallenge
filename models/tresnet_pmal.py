@@ -7,33 +7,31 @@ from src.models.tresnet_v2.tresnet_v2 import TResnetL_V2 as TResnetL368
 import torch
 import numpy as np
 import torch.nn as nn
-
-class TResNetBackbone(nn.Module):
+import torch.nn.functional as F
+from models.tresnet import TResNetBackbone
+class TResNet_PMALBackbone(nn.Module):
     def __init__(self, num_classes, weights_path=None):
         super().__init__()
-        model_params = {'num_classes': num_classes}
+        model_params = {'num_classes': 196}
         self.backbone = TResnetL368(model_params)
         if weights_path:
             pretrained_weights = torch.load(weights_path, map_location='cpu')
             self.backbone.load_state_dict(pretrained_weights['model'])
-        self.feature_dim = self.backbone.num_features
-        self.backbone.head = nn.Identity()
-        self.head = nn.Linear(self.feature_dim, num_classes)
+
+        net_layers = list(self.backbone.children())
+        classifier = net_layers[1:3]
+        net_layers = net_layers[0]
+        net_layers = list(net_layers.children())
+
+        # Network_Wrapper 생성
+        self.model = Network_Wrapper(net_layers, num_classes, classifier)
+
 
     def forward(self, x):
-        x = self.backbone(x)
-        x = self.head(x)
+        x = self.model(x)
         return x
     
 from torch.nn.modules.batchnorm import _BatchNorm
-
-def cosine_anneal_schedule(t, nb_epoch, lr):
-    cos_inner = np.pi * (t % (nb_epoch))
-    cos_inner /= (nb_epoch)
-    cos_out = np.cos(cos_inner) + 1
-
-    return float(lr / 2 * cos_out)
-
 class BasicConv(nn.Module):
     def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=0, dilation=1, groups=1, relu=True, bn=True, bias=False):
         super(BasicConv, self).__init__()
@@ -69,7 +67,6 @@ class Features(nn.Module):
         x1 = self.net_layer_3(x)
         x2 = self.net_layer_4(x1)
         x3 = self.net_layer_5(x2)
-
         return x1, x2, x3
 
 
@@ -268,65 +265,3 @@ class Student_Wrapper(nn.Module):
         out = self.classifier_initial(classifiers)
 
         return out, x1, x2, x3
-
-# SAM
-class SAM(torch.optim.Optimizer):
-    def __init__(self, params, base_optimizer, rho=0.05, adaptive=False, **kwargs):
-        assert rho >= 0.0, f"Invalid rho, should be non-negative: {rho}"
-
-        defaults = dict(rho=rho, adaptive=adaptive, **kwargs)
-        super(SAM, self).__init__(params, defaults)
-
-        self.base_optimizer = base_optimizer(self.param_groups, **kwargs)
-        self.param_groups = self.base_optimizer.param_groups
-        self.defaults.update(self.base_optimizer.defaults)
-
-    @torch.no_grad()
-    def first_step(self, zero_grad=False):
-        grad_norm = self._grad_norm()
-        for group in self.param_groups:
-            scale = group["rho"] / (grad_norm + 1e-12)
-
-            for p in group["params"]:
-                if p.grad is None: continue
-                self.state[p]["old_p"] = p.data.clone()
-                e_w = (torch.pow(p, 2) if group["adaptive"] else 1.0) * p.grad * scale.to(p)
-                p.add_(e_w)  # climb to the local maximum "w + e(w)"
-
-        if zero_grad: self.zero_grad()
-
-    @torch.no_grad()
-    def second_step(self, zero_grad=False):
-        for group in self.param_groups:
-            for p in group["params"]:
-                if p.grad is None: continue
-                p.data = self.state[p]["old_p"]  # get back to "w" from "w + e(w)"
-
-        self.base_optimizer.step()  # do the actual "sharpness-aware" update
-
-        if zero_grad: self.zero_grad()
-
-    @torch.no_grad()
-    def step(self, closure=None):
-        assert closure is not None, "Sharpness Aware Minimization requires closure, but it was not provided"
-        closure = torch.enable_grad()(closure)  # the closure should do a full forward-backward pass
-
-        self.first_step(zero_grad=True)
-        closure()
-        self.second_step()
-
-    def _grad_norm(self):
-        shared_device = self.param_groups[0]["params"][0].device  # put everything on the same device, in case of model parallelism
-        norm = torch.norm(
-                    torch.stack([
-                        ((torch.abs(p) if group["adaptive"] else 1.0) * p.grad).norm(p=2).to(shared_device)
-                        for group in self.param_groups for p in group["params"]
-                        if p.grad is not None
-                    ]),
-                    p=2
-               )
-        return norm
-
-    def load_state_dict(self, state_dict):
-        super().load_state_dict(state_dict)
-        self.base_optimizer.param_groups = self.param_groups
