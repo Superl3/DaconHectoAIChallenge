@@ -2,29 +2,7 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 import torch.nn.functional as F
-import sys
-import os
-
-sys.path.append(os.path.join(os.path.dirname(__file__), "TResNet"))
-from src.models.tresnet_v2.tresnet_v2 import TResnetL_V2 as TResnetL368
-
-# 모델 백본 정의 (교체 가능)
-class TResNetBackbone(nn.Module):
-    def __init__(self, num_classes, weights_path=None):
-        super().__init__()
-        model_params = {'num_classes': 196}
-        self.backbone = TResnetL368(model_params)
-        if weights_path:
-            pretrained_weights = torch.load(weights_path, map_location='cpu')
-            self.backbone.load_state_dict(pretrained_weights['model'])
-        self.feature_dim = self.backbone.num_features
-        self.backbone.head = nn.Identity()
-        self.head = nn.Linear(self.feature_dim, num_classes)
-
-    def forward(self, x):
-        x = self.backbone(x)
-        x = self.head(x)
-        return x
+import importlib
 
 # LightningModule: 백본을 주입받아 사용
 class ClassificationLightningModule(pl.LightningModule):
@@ -67,3 +45,31 @@ class ClassificationLightningModule(pl.LightningModule):
                 'frequency': 1
             }
         }
+
+def get_lightning_model_from_config(cfg, num_classes=None):
+    """
+    cfg['backbone']에 해당하는 백본을 models/ 폴더에서 import하여
+    ClassificationLightningModule에 주입해 반환합니다.
+    num_classes가 None이면 cfg['num_classes'] 사용.
+    """
+    backbone_name = cfg.get('backbone', 'tresnet')
+    if num_classes is None:
+        num_classes = cfg.get('num_classes', 1000)
+    weights_path = cfg.get('pretrained_weights', None)
+    # models/ 폴더에서 해당 백본 import
+    try:
+        backbone_module = importlib.import_module(f"models.{backbone_name}")
+    except ImportError as e:
+        raise ImportError(f"models/{backbone_name}.py 파일이 존재해야 합니다: {e}")
+    # 백본 클래스명 규칙: {BackboneName}Backbone (예: TResNetBackbone)
+    class_candidates = [attr for attr in dir(backbone_module) if attr.lower().startswith(backbone_name.lower()) and attr.lower().endswith('backbone')]
+    if not class_candidates:
+        raise ValueError(f"models/{backbone_name}.py에 '*Backbone' 클래스를 정의해야 합니다.")
+    backbone_class = getattr(backbone_module, class_candidates[0])
+    # 백본 인스턴스 생성
+    backbone = backbone_class(num_classes=num_classes, weights_path=weights_path)
+    backbone = backbone.to(memory_format=torch.channels_last)
+    # LightningModule import
+    
+    lightning_model = ClassificationLightningModule(backbone, learning_rate=cfg.get('learning_rate', 1e-4))
+    return lightning_model
