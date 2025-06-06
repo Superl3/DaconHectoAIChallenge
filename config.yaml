@@ -13,3 +13,9 @@ wandb:
   entity: 'Dacon_Car'
   project: 'car-classification'
   name: 'TResNet'
+accumulate_grad_batches: 4
+use_swa: false
+swa_lr: 1e-4
+use_ema: false
+ema_decay: 0.999
+auto_scale_batch_size: false
