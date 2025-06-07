@@ -10,6 +10,7 @@ from utils import load_config
 from seed_utils import seed_everything
 from model import get_lightning_model_from_config
 from datamodule import CarDataModule, get_callbacks_from_config
+from pytorch_lightning.tuner import Tuner
 
 torch.set_float32_matmul_precision('medium')  # Tensor Core 최적화
 
@@ -63,8 +64,23 @@ def main():
         devices=1,
         log_every_n_steps=10,
         accumulate_grad_batches=cfg.get('accumulate_grad_batches', 1),
-        #num_sanity_val_steps=0
+        num_sanity_val_steps=0,
+        #gradient_clip_val=cfg.get('gradient_clip_val', 1.0),
     )
+
+    # if cfg.get('auto_scale_batch_size', False):
+    #     tuner = Tuner(trainer)
+    #     # mode는 'power'(기본, 지수적으로 증가) 또는 'binsearch'(이진탐색) 중 선택
+    #     tuner.scale_batch_size(lightning_model, datamodule=datamodule, mode='power')
+    #     lr_finder = tuner.lr_find(lightning_model, datamodule=datamodule)
+    #     # 추천 learning rate
+    #     print(f"[LR Finder] Suggested learning rate: {lr_finder.suggestion()}")
+    #     # 시각화 및 저장
+    #     fig = lr_finder.plot(suggest=True)
+    #     fig.savefig('lr_finder_plot.png')  # 이미지로 저장
+    #     print("[LR Finder] Plot saved as lr_finder_plot.png")
+    #     # 모델에 적용
+    #     lightning_model.hparams.learning_rate = lr_finder.suggestion()
 
     trainer.fit(lightning_model, datamodule=datamodule)
 

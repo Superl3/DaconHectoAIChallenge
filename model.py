@@ -3,6 +3,7 @@ import torch.nn as nn
 import pytorch_lightning as pl
 import torch.nn.functional as F
 import importlib
+import os
 
 # LightningModule: 백본을 주입받아 사용
 class ClassificationLightningModule(pl.LightningModule):
@@ -18,44 +19,58 @@ class ClassificationLightningModule(pl.LightningModule):
         return self.model(x)
 
     def training_step(self, batch, batch_idx):
-        # images, labels = batch
-        # logits = self(images)
-        # loss = self.criterion(logits, labels).mean()
-        # acc = (logits.argmax(dim=1) == labels).float().mean()
-        # self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
-        # self.log('train_acc', acc, on_step=False, on_epoch=True, prog_bar=True)
-        # return loss
-
         images, labels = batch
         optimizer = self.optimizers()
         # SAM step 1
         outputs = self(images)
         loss = self.criterion(outputs, labels).mean()
+        # NaN/Inf 체크 및 상세 로깅
+        if torch.isnan(loss) or torch.isinf(loss):
+            print(f"[NaN/Inf DETECTED] batch_idx={batch_idx}")
+            print(f"images.shape: {images.shape}, labels.shape: {labels.shape}")
+            print(f"images.min: {images.min().item()}, images.max: {images.max().item()}")
+            print(f"labels.min: {labels.min().item()}, labels.max: {labels.max().item()}")
+            print(f"outputs.min: {outputs.min().item()}, outputs.max: {outputs.max().item()}")
+            print(f"loss: {loss}")
+            raise ValueError('NaN/Inf detected in loss!')
+        acc = (outputs.argmax(dim=1) == labels).float().mean()
+        #print(f"[Train] Epoch={self.current_epoch} Batch={batch_idx} Loss={loss.item():.6f} Acc={acc.item():.4f}")
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_acc', acc, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         self.manual_backward(loss)
         optimizer.first_step(zero_grad=True)
 
         # SAM step 2
         outputs2 = self(images)
         loss2 = self.criterion(outputs2, labels).mean()
+        if torch.isnan(loss2) or torch.isinf(loss2):
+            print(f"[NaN/Inf DETECTED - SAM2] batch_idx={batch_idx}")
+            print(f"images.min: {images.min().item()}, images.max: {images.max().item()}, mean: {images.mean().item()}, std: {images.std().item()}")
+            print(f"outputs2.min: {outputs2.min().item()}, outputs2.max: {outputs2.max().item()}, mean: {outputs2.mean().item()}, std: {outputs2.std().item()}")
+            print(f"labels.min: {labels.min().item()}, labels.max: {labels.max().item()}")
+            print(f"loss2: {loss2}")
+            raise ValueError('NaN/Inf detected in loss2!')
         self.manual_backward(loss2)
         optimizer.second_step(zero_grad=True)
-
-        acc = (outputs.argmax(dim=1) == labels).float().mean()
-        self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log('train_acc', acc, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         images, labels = batch
         logits = self(images)
         loss = self.criterion(logits, labels).mean()
+        if torch.isnan(loss) or torch.isinf(loss):
+            print(f"[NaN/Inf DETECTED - VAL] batch_idx={batch_idx}")
+            print(f"logits.min: {logits.min().item()}, logits.max: {logits.max().item()}")
+            print(f"loss: {loss}")
+            raise ValueError('NaN/Inf detected in val loss!')
         acc = (logits.argmax(dim=1) == labels).float().mean()
-        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log('val_acc', acc, on_step=False, on_epoch=True, prog_bar=True)
+        #print(f"[Val] Epoch={self.current_epoch} Batch={batch_idx} Loss={loss.item():.6f} Acc={acc.item():.4f}")
+        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_acc', acc, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return {'val_loss': loss, 'val_acc': acc}
 
     def configure_optimizers(self):
-        optimizer = SAM(self.model.parameters(),torch.optim.SGD,lr=self.hparams.learning_rate,adaptive=False,momentum=0.9,weight_decay=5e-4)
+        optimizer = SAM(self.model.parameters(), torch.optim.SGD, lr=self.hparams.learning_rate, rho=0.01, adaptive=False, momentum=0.9, weight_decay=5e-4)
         #torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.trainer.max_epochs)
         #torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2, factor=0.5, verbose=True)
@@ -80,6 +95,15 @@ class ClassificationLightningModule(pl.LightningModule):
 
     def CELoss(self, x, y):
         return self.smooth_crossentropy(x, y, smoothing=0.1)
+
+    def on_train_epoch_end(self):
+        # 매 epoch마다 수동으로 체크포인트 저장
+        if hasattr(self, 'trainer') and self.trainer is not None:
+            save_dir = 'checkpoints/manual_epoch_ckpt'
+            os.makedirs(save_dir, exist_ok=True)
+            ckpt_path = os.path.join(save_dir, f'epoch_{self.current_epoch:03d}.ckpt')
+            self.trainer.save_checkpoint(ckpt_path)
+            print(f"[Checkpoint] Saved manual checkpoint: {ckpt_path}")
 
 # SAM
 class SAM(torch.optim.Optimizer):
