@@ -5,6 +5,13 @@ import torch.nn.functional as F
 import importlib
 import os
 
+import torch
+import torch.nn as nn
+from torch.nn.modules.batchnorm import _BatchNorm
+
+
+
+
 # LightningModule: 백본을 주입받아 사용
 class ClassificationLightningModule(pl.LightningModule):
     def __init__(self, model: nn.Module, learning_rate=1e-4):
@@ -21,7 +28,11 @@ class ClassificationLightningModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         images, labels = batch
         optimizer = self.optimizers()
+        scheduler = self.lr_schedulers()
+          
         # SAM step 1
+        enable_running_stats(self.model)
+        optimizer.zero_grad()
         outputs = self(images)
         loss = self.criterion(outputs, labels).mean()
         # NaN/Inf 체크 및 상세 로깅
@@ -37,10 +48,15 @@ class ClassificationLightningModule(pl.LightningModule):
         #print(f"[Train] Epoch={self.current_epoch} Batch={batch_idx} Loss={loss.item():.6f} Acc={acc.item():.4f}")
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         self.log('train_acc', acc, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.manual_backward(loss)
+        current_lr = optimizer.param_groups[0]['lr']
+        self.log('lr', current_lr, on_step=True, on_epoch=False, prog_bar=False, logger=True)
+        #self.manual_backward(loss)
+        loss.backward()
         optimizer.first_step(zero_grad=True)
-
+        
         # SAM step 2
+        disable_running_stats(self.model)
+        optimizer.zero_grad()
         outputs2 = self(images)
         loss2 = self.criterion(outputs2, labels).mean()
         if torch.isnan(loss2) or torch.isinf(loss2):
@@ -50,8 +66,11 @@ class ClassificationLightningModule(pl.LightningModule):
             print(f"labels.min: {labels.min().item()}, labels.max: {labels.max().item()}")
             print(f"loss2: {loss2}")
             raise ValueError('NaN/Inf detected in loss2!')
-        self.manual_backward(loss2)
+        # self.manual_backward(loss2)
+        loss2.backward()
         optimizer.second_step(zero_grad=True)
+
+        scheduler.step()  
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -78,7 +97,7 @@ class ClassificationLightningModule(pl.LightningModule):
             'optimizer': optimizer,
             'lr_scheduler': {
                 'scheduler': scheduler,
-                'monitor': 'val_loss',
+                # 'monitor': 'val_loss',
                 'interval': 'epoch',
                 'frequency': 1
             }
@@ -202,3 +221,18 @@ def get_lightning_model_from_config(cfg, num_classes=None):
     
     lightning_model = ClassificationLightningModule(backbone, learning_rate=cfg.get('learning_rate', 1e-4))
     return lightning_model
+
+def disable_running_stats(model):
+    def _disable(module):
+        if isinstance(module, _BatchNorm):
+            module.backup_momentum = module.momentum
+            module.momentum = 0
+
+    model.apply(_disable)
+
+def enable_running_stats(model):
+    def _enable(module):
+        if isinstance(module, _BatchNorm) and hasattr(module, "backup_momentum"):
+            module.momentum = module.backup_momentum
+
+    model.apply(_enable)

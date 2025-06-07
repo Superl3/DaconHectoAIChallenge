@@ -23,7 +23,22 @@ def get_transforms(cfg):
         height=int(cfg['crop_size']),   # 예: 294 (368*0.8), 더 작게 하고 싶으면 0.6~0.8 추천
         width=int(cfg['crop_size']),    # 전체 면적의 60~100%에서 랜덤 크롭
         p=0.5),
+        A.Affine(
+            scale=(0.9, 1.1),           # 10% 내외 확대/축소
+            translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},  # 최대 10% 이동
+            rotate=(-10, 10),           # -10~10도 회전
+            shear=(-8, 8),              # -8~8도 기울임
+            fit_output=True,            # 변환 후 이미지가 잘리지 않게
+            p=0.7                       # 70% 확률로 적용
+        ),
+        A.Perspective(
+            scale=(0.05, 0.1),   # 변형 강도 (0.05~0.1 정도가 자연스러움)
+            keep_size=True,      # 출력 크기 유지
+            fit_output=True,     # 잘림 방지
+            p=0.5                # 50% 확률로 적용
+        ),
         A.Resize(height=cfg['crop_size'], width=cfg['crop_size'], interpolation=PIL.Image.BILINEAR),
+
         A.HorizontalFlip(p=0.5),
         A.ColorJitter(
             brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.5
@@ -65,6 +80,7 @@ def main():
         log_every_n_steps=10,
         accumulate_grad_batches=cfg.get('accumulate_grad_batches', 1),
         num_sanity_val_steps=0,
+        profiler="simple"
         #gradient_clip_val=cfg.get('gradient_clip_val', 1.0),
     )
 
