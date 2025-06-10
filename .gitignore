@@ -10,3 +10,4 @@ stanford_cars_tresnet-l-v2_96_27.pth
 Fine_Tuning_DARTS_for_Image_Classification_Paper_Implementation.ipynb
 baseline copy.ipynb
 tresnet-pmal.ipynb
+*.ckpt
