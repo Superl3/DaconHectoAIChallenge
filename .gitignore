@@ -11,3 +11,4 @@ Fine_Tuning_DARTS_for_Image_Classification_Paper_Implementation.ipynb
 baseline copy.ipynb
 tresnet-pmal.ipynb
 *.ckpt
+config.yaml

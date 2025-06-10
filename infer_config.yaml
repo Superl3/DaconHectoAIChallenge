@@ -1,0 +1,11 @@
+seed: 42
+batch_size: 64
+num_workers: 4
+crop_size: 320
+train_root: upscaled/train
+test_root: upscaled/test
+sample_submission: open/sample_submission.csv
+checkpoint_path: checkpoints/manual_epoch_ckpt/epoch_029.ckpt
+tta:
+  flip: true
+  multiscale: [320, 384, 448]
