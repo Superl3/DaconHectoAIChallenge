@@ -47,17 +47,35 @@ def infer_and_submit():
     num_classes = len(class_names)
     test_dataset = CustomImageDataset(cfg['test_root'], transform=val_transform, is_test=True)
     test_loader = DataLoader(test_dataset, batch_size=cfg['batch_size'], shuffle=False, num_workers=cfg.get('num_workers', 4), pin_memory=True)
-    lightning_model = get_lightning_model_from_config(cfg, num_classes)
-    checkpoint_path = cfg['checkpoint_path']
+
+    # --- backbone만 직접 불러와서 추론 ---
+    import importlib
+    backbone_name = cfg.get('backbone', 'tresnet')
+    weights_path = cfg['checkpoint_path']
+    try:
+        backbone_module = importlib.import_module(f"models.{backbone_name}")
+    except ImportError as e:
+        raise ImportError(f"models/{backbone_name}.py 파일이 존재해야 합니다: {e}")
+    class_candidates = [attr for attr in dir(backbone_module) if attr.lower().startswith(backbone_name.lower()) and attr.lower().endswith('backbone')]
+    if not class_candidates:
+        raise ValueError(f"models/{backbone_name}.py에 '*Backbone' 클래스를 정의해야 합니다.")
+    backbone_class = getattr(backbone_module, class_candidates[0])
+    backbone = backbone_class(num_classes=num_classes, weights_path=None)
+    backbone = backbone.to(device)
+    # pth/ckpt 불러오기 (state_dict만)
+    state = torch.load(weights_path, map_location=device)
+    if 'state_dict' in state:
+        # LightningModule 저장 포맷
+        state = {k.replace('model.', ''): v for k, v in state['state_dict'].items() if k.startswith('model.')}
+    backbone.load_state_dict(state, strict=False)
+    backbone.eval()
+
     tta_cfg = cfg.get('tta', {})
-    lightning_model.load_state_dict(torch.load(checkpoint_path, map_location=device)['state_dict'], strict=False)
-    lightning_model.to(device)
-    lightning_model.eval()
     results = []
     with torch.no_grad():
         for images in test_loader:
             images = images.to(device)
-            outputs = tta_predict(lightning_model, images, tta_cfg, device) if tta_cfg else lightning_model(images)
+            outputs = tta_predict(backbone, images, tta_cfg, device) if tta_cfg else backbone(images)
             probs = F.softmax(outputs, dim=1)
             for prob in probs.cpu():
                 result = {class_names[i]: prob[i].item() for i in range(len(class_names))}

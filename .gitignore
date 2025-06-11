@@ -12,3 +12,4 @@ baseline copy.ipynb
 tresnet-pmal.ipynb
 *.ckpt
 config.yaml
+infer_config.yaml
