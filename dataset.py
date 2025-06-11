@@ -5,6 +5,9 @@ from torch.utils.data import Dataset
 
 class CustomImageDataset(Dataset):
     def __init__(self, root_dir, transform=None, is_test=False):
+        # 상대경로 입력 시 현재 작업 디렉토리 기준 절대경로로 변환
+        if not os.path.isabs(root_dir):
+            root_dir = os.path.abspath(root_dir)
         self.root_dir = root_dir
         self.transform = transform
         self.is_test = is_test
