@@ -102,14 +102,14 @@ class ClassificationLightningModule(pl.LightningModule):
         else:
             return {'optimizer': optimizer}
 
-    def on_train_epoch_end(self):
-        # 매 epoch마다 수동으로 체크포인트 저장
-        if hasattr(self, 'trainer') and self.trainer is not None:
-            save_dir = 'checkpoints/manual_epoch_ckpt'
-            os.makedirs(save_dir, exist_ok=True)
-            ckpt_path = os.path.join(save_dir, f'epoch_{self.current_epoch:03d}.ckpt')
-            self.trainer.save_checkpoint(ckpt_path)
-            print(f"[Checkpoint] Saved manual checkpoint: {ckpt_path}")
+    # def on_train_epoch_end(self):
+    #     # 매 epoch마다 수동으로 체크포인트 저장
+    #     if hasattr(self, 'trainer') and self.trainer is not None:
+    #         save_dir = 'checkpoints/manual_epoch_ckpt'
+    #         os.makedirs(save_dir, exist_ok=True)
+    #         ckpt_path = os.path.join(save_dir, f'epoch_{self.current_epoch:03d}.ckpt')
+    #         self.trainer.save_checkpoint(ckpt_path)
+    #         print(f"[Checkpoint] Saved manual checkpoint: {ckpt_path}")
 
 import numpy as np
 def cosine_anneal_schedule(t, nb_epoch, lr):
