@@ -62,9 +62,23 @@ def main():
     datamodule.setup()
     num_classes = len(datamodule.class_names)
    
+    # print(f"[DEBUG] num_classes: {num_classes}")
+    # print(f"[DEBUG] class_names: {datamodule.class_names}")
+    # print(f"[DEBUG] train samples: {len(datamodule.train_dataloader().dataset)}")
+    # print(f"[DEBUG] val samples: {len(datamodule.val_dataloader().dataset)}")
+    # print(f"[DEBUG] 첫번째 train 샘플: {datamodule.train_dataloader().dataset[0]}")
+
     lightning_model = get_lightning_model_from_config(cfg, num_classes)
     #lightning_model = torch.compile(lightning_model)
     precision_mode = '16-mixed'
+    
+    print("[DEBUG] Model summary:")
+    # print(lightning_model)
+    try:
+        from torchinfo import summary
+        summary(lightning_model.model, input_size=(1, 3, cfg['crop_size'], cfg['crop_size']))
+    except Exception as e:
+        print(f"[DEBUG] torchinfo.summary error: {e}")
 
     # --- 콜백 및 부가기능 설정 ---
     callbacks = get_callbacks_from_config(cfg)
@@ -80,8 +94,8 @@ def main():
         log_every_n_steps=10,
         accumulate_grad_batches=cfg.get('accumulate_grad_batches', 1),
         num_sanity_val_steps=0,
-        profiler="simple"
-        #gradient_clip_val=cfg.get('gradient_clip_val', 1.0),
+        #profiler="simple",
+        gradient_clip_val=cfg.get('gradient_clip_val', 1.0),
     )
 
     # if cfg.get('auto_scale_batch_size', False):
