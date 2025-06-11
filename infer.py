@@ -6,8 +6,9 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from dataset import CustomImageDataset
 from utils import load_config
-from model import get_lightning_model_from_config
+from model import get_lightning_model_from_config, ClassificationLightningModule
 from seed_utils import seed_everything
+from tqdm import tqdm
 
 torch.set_float32_matmul_precision('medium')  # Tensor Core 최적화
 
@@ -56,7 +57,7 @@ def load_model_for_inference(cfg, num_classes, device):
     if ext == '.ckpt':
         try:
             lightning_model = get_lightning_model_from_config(cfg, num_classes=num_classes)
-            lightning_model = lightning_model.load_from_checkpoint(weights_path, model=lightning_model.model, cfg=cfg)
+            lightning_model = ClassificationLightningModule.load_from_checkpoint(weights_path, model=lightning_model.model, cfg=cfg)
             model = lightning_model.model.to(device)
             print(f"[INFO] Loaded LightningModule from {weights_path} (ckpt)")
         except Exception as e:
@@ -95,15 +96,17 @@ def load_model_for_inference(cfg, num_classes, device):
 
 def run_inference(model, test_loader, class_names, tta_cfg, device):
     import torch.nn.functional as F
+    print("[INFO] Inference started...")
     results = []
-    with torch.no_grad():
-        for images in test_loader:
+    with torch.inference_mode():
+        for images in tqdm(test_loader, desc="[Inference] Batches", unit="batch"):
             images = images.to(device)
             outputs = tta_predict(model, images, tta_cfg, device) if tta_cfg else model(images)
             probs = F.softmax(outputs, dim=1)
             for prob in probs.cpu():
                 result = {class_names[i]: prob[i].item() for i in range(len(class_names))}
                 results.append(result)
+    print(f"[INFO] Inference completed. Total samples: {len(results)}")
     return results
 
 def save_submission(results, cfg):
@@ -118,18 +121,21 @@ def save_submission(results, cfg):
     return submission
 
 def infer_and_submit():
+    print("[STEP 1] Loading config and setting seed...")
     cfg = load_config('infer_config.yaml')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     seed_everything(cfg['seed'])
-    # 1. 데이터셋 준비
+    print("[STEP 2] Preparing datasets...")
     class_names, num_classes, test_loader = prepare_datasets(cfg)
-    # 2. 모델 로드
+    print(f"[INFO] Number of classes: {num_classes}, Test batches: {len(test_loader)}")
+    print("[STEP 3] Loading model...")
     model = load_model_for_inference(cfg, num_classes, device)
-    # 3. 추론
+    print("[STEP 4] Running inference...")
     tta_cfg = cfg.get('tta', {})
     results = run_inference(model, test_loader, class_names, tta_cfg, device)
-    # 4. 결과 저장
+    print("[STEP 5] Saving submission...")
     submission = save_submission(results, cfg)
+    print("[ALL DONE] Inference and submission complete.")
     return submission
 
 if __name__ == '__main__':
