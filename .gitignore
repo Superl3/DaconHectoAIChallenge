@@ -1,15 +1,10 @@
 ﻿*.jpg
-upscaled/train/1시리즈_F20_2013_2015/1시리즈_F20_2013_2015_0000.png
 *.png
 *.csv
 SwinIR
 wandb
 TResNet
 __pycache__
-stanford_cars_tresnet-l-v2_96_27.pth
-Fine_Tuning_DARTS_for_Image_Classification_Paper_Implementation.ipynb
-baseline copy.ipynb
-tresnet-pmal.ipynb
+*.ipynb
+*.pth
 *.ckpt
-config.yaml
-infer_config.yaml
