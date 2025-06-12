@@ -20,7 +20,7 @@ class ClassificationLightningModule(pl.LightningModule):
         self.save_hyperparameters(ignore=['model'])
         self.cfg = cfg or {}
         self.automatic_optimization = True
-        self.label_smoothing = float(self.cfg.get('label_smoothing', 0.1))
+        self.label_smoothing = float(self.cfg.get('label_smoothing', 0.05))
         self.criterion = self.CrossEntropyLoss
 
     def forward(self, x):

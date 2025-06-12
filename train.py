@@ -112,7 +112,8 @@ def main():
     #     # 모델에 적용
     #     lightning_model.hparams.learning_rate = lr_finder.suggestion()
 
-    trainer.fit(lightning_model, datamodule=datamodule)
+    trainer.fit(lightning_model, datamodule=datamodule,
+                ckpt_path=cfg.get('checkpoint_path', None))
 
 if __name__ == '__main__':
     main()

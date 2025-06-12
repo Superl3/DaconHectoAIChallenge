@@ -1,0 +1,48 @@
+# config.yaml 예시
+train_root: './upscaled/train'
+test_root: './upscaled/test'
+pretrained_weights: 
+sample_submission: 'open/sample_submission.csv'
+backbone: 'rdnet'
+img_size: 1024
+crop_size: 900
+train_batch_size: 6
+val_batch_size: 6
+train_num_workers: 6
+val_num_workers: 6
+num_workers: 6  # (개별 값이 없을 때 fallback)
+batch_size: 6 # (개별 값이 없을 때 fallback)
+epochs: 30 
+seed: 42
+num_classes: -1
+wandb:
+  entity: 'Dacon_Car'
+  project: 'car-classification'
+  name: 'rdnet_1024_900_step'
+use_swa: false
+auto_scale_batch_size: true
+gradient_clip_val: 1.0
+
+# Early stopping
+early_stopping_monitor: val_loss
+early_stopping_patience: 3
+early_stopping_mode: min
+early_stopping_min_delta: 0.0
+
+# Checkpoint
+checkpoint_dir: C:/Users/bug95/DaconHectoAIChallenge
+checkpoint_monitor: val_loss
+checkpoint_save_top_k: 1
+checkpoint_mode: min
+checkpoint_filename: best_model
+
+accumulate_grad_batches : 8
+learning_rate: 5e-5
+optimizer: adamw
+scheduler: step
+weight_decay: 0.01
+label_smoothing: 0.05
+step_size: 10   # StepLR용
+gamma: 0.1      # StepLR용
+
+checkpoint_path: best_model-v2.ckpt

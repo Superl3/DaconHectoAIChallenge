@@ -1,0 +1,9 @@
+seed: 42
+batch_size: 16
+num_workers: 8
+crop_size: 900
+train_root: upscaled/train
+test_root: upscaled/test
+sample_submission: open/sample_submission.csv
+checkpoint_path: best_model-v2.ckpt
+backbone: 'rdnet'
