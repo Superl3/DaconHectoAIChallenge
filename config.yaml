@@ -1,12 +1,12 @@
 # config.yaml 예시
 train_root: '/content/drive/MyDrive/Obsidian/Dacon/Hecto_AI_Challenge/upscaled/train'
 test_root: '/content/drive/MyDrive/Obsidian/Dacon/Hecto_AI_Challenge/upscaled/test'
-pretrained_weights: '/content/drive/MyDrive/Obsidian/Dacon/Hecto_AI_Challenge/Pretrained/Stanford_Cars_TResNet-L_Student_Weight.pth'
+pretrained_weights: '/content/drive/MyDrive/Obsidian/Dacon/Hecto_AI_Challenge/Pretrained/stanford_cars_tresnet-l-v2_96_27.pth' #'/content/drive/MyDrive/Obsidian/Dacon/Hecto_AI_Challenge/Pretrained/Stanford_Cars_TResNet-L_Student_Weight.pth'
 sample_submission: 'open/sample_submission.csv'
-backbone: 'tresnet_student'
+backbone: 'tresnet_cmal'
 img_size: 421
 crop_size: 368
-train_batch_size: 96
+train_batch_size: 64
 val_batch_size: 32
 train_num_workers: 12
 val_num_workers: 12
@@ -19,7 +19,7 @@ num_classes: -1
 wandb:
   entity: 'Dacon_Car'
   project: 'car-classification'
-  name: 'TResNet_student_affine_perspective'
+  name: 'TResNet_CMAL'
 use_swa: false
 swa_lr: 0.002
 use_ema: false
@@ -32,8 +32,12 @@ early_stopping_patience: 3
 early_stopping_mode: min
 early_stopping_min_delta: 0.0
 
-checkpoint_dir: C:/Users/bug95/DaconHectoAIChallenge
+checkpoint_dir: /content/drive/MyDrive/Obsidian/Dacon/Hecto_AI_Challenge/DaconHectoAIChallenge
 checkpoint_monitor: val_loss
 checkpoint_save_top_k: 1
 checkpoint_mode: min
 checkpoint_filename: best_model
+
+# Optional: path to resume training from a checkpoint
+resume_from_checkpoint: #'/content/drive/MyDrive/Obsidian/Dacon/Hecto_AI_Challenge/DaconHectoAIChallenge/checkpoints/manual_epoch_ckpt/epoch_006.ckpt'
+# e.g. '/content/drive/MyDrive/Obsidian/Dacon/Hecto_AI_Challenge/DaconHectoAIChallenge/checkpoints/best_model.ckpt'
