@@ -13,3 +13,4 @@ tresnet-pmal.ipynb
 *.ckpt
 config.yaml
 infer_config.yaml
+*.pth
