@@ -4,7 +4,7 @@ import pytorch_lightning as pl
 import torch.nn.functional as F
 import importlib
 import os
-
+import utils
 import torch
 import torch.nn as nn
 from torch.nn.modules.batchnorm import _BatchNorm
@@ -26,14 +26,26 @@ class ClassificationLightningModule(pl.LightningModule):
     def forward(self, x):
         return self.model(x)
 
-    def CrossEntropyLoss(self, x, y):
+    def CrossEntropyLoss(self, x, y, reduction='mean'):
         # x: (B, num_classes), y: (B,)
-        return F.cross_entropy(x, y, label_smoothing=self.label_smoothing)
+        # reduction 파라미터를 추가하여, 평균 loss와 샘플별 loss를 모두 계산할 수 있도록 합니다.
+        return F.cross_entropy(x, y, label_smoothing=self.label_smoothing, reduction=reduction)
 
     def training_step(self, batch, batch_idx):
         images, labels = batch
-        outputs = self(images)
-        loss = self.criterion(outputs, labels).mean()
+        if self.cfg.get('Img_Mix', False):
+            mixmethod_name = self.cfg.get('mixmethod', 'snapmix')
+            
+            # getattr을 사용하여 utils 모듈에서 문자열 이름으로 함수를 동적으로 가져옵니다.
+            mix_fn = getattr(utils, mixmethod_name)
+            images, label_a, label_b, lam_a, lam_b = mix_fn(images, labels, self.cfg, self.model)
+            outputs = self(images)
+            loss_a = self.criterion(outputs, label_a, reduction='none')
+            loss_b = self.criterion(outputs, label_b, reduction='none')
+            loss = torch.mean(loss_a* lam_a + loss_b* lam_b)
+        else:
+            outputs = self(images)
+            loss = self.criterion(outputs, labels)
         # NaN/Inf 체크 및 상세 로깅
         if torch.isnan(loss) or torch.isinf(loss):
             print(f"[NaN/Inf DETECTED] batch_idx={batch_idx}")
