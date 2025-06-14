@@ -109,6 +109,22 @@ def run_inference(model, test_loader, class_names, tta_cfg, device):
     print(f"[INFO] Inference completed. Total samples: {len(results)}")
     return results
 
+def run_inference_from_trained_model(lightning_model, test_loader, class_names, tta_cfg, device):
+    import torch.nn.functional as F
+    print("[INFO] Inference started (from trained model)...")
+    results = []
+    lightning_model.eval()
+    with torch.inference_mode():
+        for images in tqdm(test_loader, desc="[Inference] Batches", unit="batch"):
+            images = images.to(device)
+            outputs = tta_predict(lightning_model, images, tta_cfg, device) if tta_cfg else lightning_model(images)
+            probs = F.softmax(outputs, dim=1)
+            for prob in probs.cpu():
+                result = {class_names[i]: prob[i].item() for i in range(len(class_names))}
+                results.append(result)
+    print(f"[INFO] Inference completed. Total samples: {len(results)}")
+    return results
+
 def save_submission(results, cfg):
     import pandas as pd
     submission = pd.read_csv(cfg['sample_submission'], encoding='utf-8-sig')
@@ -133,6 +149,21 @@ def infer_and_submit(cfg):
     tta_cfg = cfg.get('tta', {})
     results = run_inference(model, test_loader, class_names, tta_cfg, device)
     print("[STEP 5] Saving submission...")
+    submission = save_submission(results, cfg)
+    print("[ALL DONE] Inference and submission complete.")
+    return submission
+
+def infer_and_submit_from_trained_model(lightning_model, cfg):
+    print("[STEP 1] Setting seed...")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    seed_everything(cfg['seed'])
+    print("[STEP 2] Preparing datasets...")
+    class_names, _, test_loader = prepare_datasets(cfg)
+    print(f"[INFO] Number of classes: {len(class_names)}, Test batches: {len(test_loader)}")
+    print("[STEP 3] Running inference from trained model...")
+    tta_cfg = cfg.get('tta', {})
+    results = run_inference_from_trained_model(lightning_model, test_loader, class_names, tta_cfg, device)
+    print("[STEP 4] Saving submission...")
     submission = save_submission(results, cfg)
     print("[ALL DONE] Inference and submission complete.")
     return submission

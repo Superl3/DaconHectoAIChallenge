@@ -111,16 +111,9 @@ def main(config_path='config.yaml'):
         trainer.fit(lightning_model, datamodule=datamodule,
                     ckpt_path=cfg.get('checkpoint_path', None))
         if trainer.state.finished:
-            print("[INFO] Training finished. Running inference with infer_config.yaml...")
-            from utils import load_config as load_infer_config
-            import sys
-            infer_config_path = 'infer_config.yaml'
-            if len(sys.argv) > 2:
-                infer_config_path = sys.argv[2]
-            infer_cfg = load_infer_config(infer_config_path)
-            cfg = load_config(config_path)
-            from infer import infer_and_submit
-            infer_and_submit(infer_cfg)
+            print("[INFO] Training finished. Running inference with trained model...")
+            from infer import infer_and_submit_from_trained_model
+            infer_and_submit_from_trained_model(lightning_model, cfg)
         else:
             print("[INFO] Training did not finish (possibly interrupted). Skipping inference.")
     except KeyboardInterrupt:
