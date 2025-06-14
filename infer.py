@@ -42,12 +42,12 @@ def prepare_datasets(cfg):
     ])
     train_dataset = CustomImageDataset(cfg['train_root'], transform=None)
     class_names = train_dataset.classes
-    num_classes = len(class_names)
     test_dataset = CustomImageDataset(cfg['test_root'], transform=val_transform, is_test=True)
     test_loader = DataLoader(test_dataset, batch_size=cfg['batch_size'], shuffle=False, num_workers=cfg.get('num_workers', 4), pin_memory=True)
-    return class_names, num_classes, test_loader
+    return class_names, class_names, test_loader
 
-def load_model_for_inference(cfg, num_classes, device):
+def load_model_for_inference(cfg, class_names, device):
+    num_classes = len(class_names)
     import importlib
     backbone_name = cfg.get('backbone', 'tresnet')
     weights_path = cfg['checkpoint_path']
@@ -56,7 +56,7 @@ def load_model_for_inference(cfg, num_classes, device):
     backbone = None
     if ext == '.ckpt':
         try:
-            lightning_model = get_lightning_model_from_config(cfg, num_classes=num_classes)
+            lightning_model = get_lightning_model_from_config(cfg, class_names=class_names)
             lightning_model = ClassificationLightningModule.load_from_checkpoint(weights_path, model=lightning_model.model, cfg=cfg)
             model = lightning_model.model.to(device)
             print(f"[INFO] Loaded LightningModule from {weights_path} (ckpt)")
@@ -64,7 +64,7 @@ def load_model_for_inference(cfg, num_classes, device):
             raise RuntimeError(f"[ERROR] Failed to load LightningModule from .ckpt: {e}")
     elif ext in ['.pth', '.bin']:
         try:
-            lightning_model = get_lightning_model_from_config(cfg, num_classes=num_classes)
+            lightning_model = get_lightning_model_from_config(cfg, class_names=class_names)
             state = torch.load(weights_path, map_location=device)
             if 'state_dict' in state:
                 state = state['state_dict']
@@ -109,6 +109,22 @@ def run_inference(model, test_loader, class_names, tta_cfg, device):
     print(f"[INFO] Inference completed. Total samples: {len(results)}")
     return results
 
+def run_inference_from_trained_model(lightning_model, test_loader, class_names, tta_cfg, device):
+    import torch.nn.functional as F
+    print("[INFO] Inference started (from trained model)...")
+    results = []
+    lightning_model.eval()
+    with torch.inference_mode():
+        for images in tqdm(test_loader, desc="[Inference] Batches", unit="batch"):
+            images = images.to(device)
+            outputs = tta_predict(lightning_model, images, tta_cfg, device) if tta_cfg else lightning_model(images)
+            probs = F.softmax(outputs, dim=1)
+            for prob in probs.cpu():
+                result = {class_names[i]: prob[i].item() for i in range(len(class_names))}
+                results.append(result)
+    print(f"[INFO] Inference completed. Total samples: {len(results)}")
+    return results
+
 def save_submission(results, cfg):
     import pandas as pd
     submission = pd.read_csv(cfg['sample_submission'], encoding='utf-8-sig')
@@ -125,10 +141,10 @@ def infer_and_submit(cfg):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     seed_everything(cfg['seed'])
     print("[STEP 2] Preparing datasets...")
-    class_names, num_classes, test_loader = prepare_datasets(cfg)
-    print(f"[INFO] Number of classes: {num_classes}, Test batches: {len(test_loader)}")
+    class_names, class_names, test_loader = prepare_datasets(cfg)
+    print(f"[INFO] Number of classes: {len(class_names)}, Test batches: {len(test_loader)}")
     print("[STEP 3] Loading model...")
-    model = load_model_for_inference(cfg, num_classes, device)
+    model = load_model_for_inference(cfg, class_names, device)
     print("[STEP 4] Running inference...")
     tta_cfg = cfg.get('tta', {})
     results = run_inference(model, test_loader, class_names, tta_cfg, device)
@@ -137,7 +153,24 @@ def infer_and_submit(cfg):
     print("[ALL DONE] Inference and submission complete.")
     return submission
 
+def infer_and_submit_from_trained_model(lightning_model, cfg):
+    print("[STEP 1] Setting seed...")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    seed_everything(cfg['seed'])
+    print("[STEP 2] Preparing datasets...")
+    class_names, _, test_loader = prepare_datasets(cfg)
+    print(f"[INFO] Number of classes: {len(class_names)}, Test batches: {len(test_loader)}")
+    print("[STEP 3] Running inference from trained model...")
+    tta_cfg = cfg.get('tta', {})
+    results = run_inference_from_trained_model(lightning_model, test_loader, class_names, tta_cfg, device)
+    print("[STEP 4] Saving submission...")
+    submission = save_submission(results, cfg)
+    print("[ALL DONE] Inference and submission complete.")
+    return submission
+
 if __name__ == '__main__':
+    import sys
     from utils import load_config
-    infer_cfg = load_config('infer_config.yaml')
+    config_path = sys.argv[1] if len(sys.argv) > 1 else 'infer_config.yaml'
+    infer_cfg = load_config(config_path)
     infer_and_submit(infer_cfg)

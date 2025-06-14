@@ -55,21 +55,15 @@ def get_transforms(cfg):
     ])
     return train_transform, val_transform
 
-def main():
-    cfg = load_config()
+def main(config_path='config.yaml'):
+    cfg = load_config(config_path)
     seed_everything(cfg['seed'])
     train_transform, val_transform = get_transforms(cfg)
     datamodule = CarDataModule(cfg, train_transform, val_transform)
     datamodule.setup()
     num_classes = len(datamodule.class_names)
-   
-    # print(f"[DEBUG] num_classes: {num_classes}")
-    # print(f"[DEBUG] class_names: {datamodule.class_names}")
-    # print(f"[DEBUG] train samples: {len(datamodule.train_dataloader().dataset)}")
-    # print(f"[DEBUG] val samples: {len(datamodule.val_dataloader().dataset)}")
-    # print(f"[DEBUG] 첫번째 train 샘플: {datamodule.train_dataloader().dataset[0]}")
 
-    lightning_model = get_lightning_model_from_config(cfg, num_classes)
+    lightning_model = get_lightning_model_from_config(cfg, datamodule.class_names)
     #lightning_model = torch.compile(lightning_model)
     precision_mode = '16-mixed'
     
@@ -116,20 +110,16 @@ def main():
     try:
         trainer.fit(lightning_model, datamodule=datamodule,
                     ckpt_path=cfg.get('checkpoint_path', None))
-        # 학습이 정상적으로 끝난 경우에만 자동 추론
-        if trainer.state.finished:  # 학습이 정상 종료된 경우
-            print("[INFO] Training finished. Running inference with infer_config.yaml...")
-            from utils import load_config as load_infer_config
-            infer_cfg = load_infer_config('infer_config.yaml')
-            # config.yaml을 다시 불러서 config 우선 세팅
-            cfg = load_config()
-            # infer_and_submit에 infer_cfg를 넘김
-            from infer import infer_and_submit
-            infer_and_submit(infer_cfg)
+        if trainer.state.finished:
+            print("[INFO] Training finished. Running inference with trained model...")
+            from infer import infer_and_submit_from_trained_model
+            infer_and_submit_from_trained_model(lightning_model, cfg)
         else:
             print("[INFO] Training did not finish (possibly interrupted). Skipping inference.")
     except KeyboardInterrupt:
         print("[INFO] Training interrupted by user. Skipping inference.")
 
 if __name__ == '__main__':
-    main()
+    import sys
+    config_path = sys.argv[1] if len(sys.argv) > 1 else 'config.yaml'
+    main(config_path)
