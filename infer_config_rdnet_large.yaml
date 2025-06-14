@@ -5,8 +5,5 @@ crop_size: 384
 train_root: upscaled/train
 test_root: upscaled/test
 sample_submission: open/sample_submission.csv
-checkpoint_path: best_model-v9.ckpt
+checkpoint_path: best_model-v5.ckpt
 backbone: 'rdnet'
-# tta:
-#   multiscale: [384, 416, 448]
-#   flip: true

@@ -79,7 +79,7 @@ def get_callbacks_from_config(cfg):
     callbacks = []
     # EarlyStopping
     early_stop_callback = EarlyStopping(
-        monitor=cfg.get('early_stopping_monitor', 'val_loss'),
+        monitor=cfg.get('early_stopping_monitor', 'val_logloss'),
         patience=cfg.get('early_stopping_patience', 3),
         mode=cfg.get('early_stopping_mode', 'min'),
         min_delta=cfg.get('early_stopping_min_delta', 0.0),
@@ -89,7 +89,7 @@ def get_callbacks_from_config(cfg):
     # ModelCheckpoint
     checkpoint_callback = ModelCheckpoint(
         dirpath=cfg.get('checkpoint_dir', 'checkpoints'),
-        monitor=cfg.get('checkpoint_monitor', 'val_loss'),
+        monitor=cfg.get('checkpoint_monitor', 'val_logloss'),
         save_top_k=cfg.get('checkpoint_save_top_k', 1),
         mode=cfg.get('checkpoint_mode', 'min'),
         filename=cfg.get('checkpoint_filename', 'best_model'),

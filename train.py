@@ -11,6 +11,7 @@ from seed_utils import seed_everything
 from model import get_lightning_model_from_config
 from datamodule import CarDataModule, get_callbacks_from_config
 from pytorch_lightning.tuner import Tuner
+from infer import infer_and_submit
 
 torch.set_float32_matmul_precision('medium')  # Tensor Core 최적화
 
@@ -54,21 +55,15 @@ def get_transforms(cfg):
     ])
     return train_transform, val_transform
 
-def main():
-    cfg = load_config()
+def main(config_path='config.yaml'):
+    cfg = load_config(config_path)
     seed_everything(cfg['seed'])
     train_transform, val_transform = get_transforms(cfg)
     datamodule = CarDataModule(cfg, train_transform, val_transform)
     datamodule.setup()
     num_classes = len(datamodule.class_names)
-   
-    # print(f"[DEBUG] num_classes: {num_classes}")
-    # print(f"[DEBUG] class_names: {datamodule.class_names}")
-    # print(f"[DEBUG] train samples: {len(datamodule.train_dataloader().dataset)}")
-    # print(f"[DEBUG] val samples: {len(datamodule.val_dataloader().dataset)}")
-    # print(f"[DEBUG] 첫번째 train 샘플: {datamodule.train_dataloader().dataset[0]}")
 
-    lightning_model = get_lightning_model_from_config(cfg, num_classes)
+    lightning_model = get_lightning_model_from_config(cfg, datamodule.class_names)
     #lightning_model = torch.compile(lightning_model)
     precision_mode = '16-mixed'
     
@@ -97,7 +92,7 @@ def main():
         #profiler="simple",
         gradient_clip_val=cfg.get('gradient_clip_val', 1.0),
     )
-
+    
     # if cfg.get('auto_scale_batch_size', False):
     #     tuner = Tuner(trainer)
     #     # mode는 'power'(기본, 지수적으로 증가) 또는 'binsearch'(이진탐색) 중 선택
@@ -112,8 +107,19 @@ def main():
     #     # 모델에 적용
     #     lightning_model.hparams.learning_rate = lr_finder.suggestion()
 
-    trainer.fit(lightning_model, datamodule=datamodule,
-                ckpt_path=cfg.get('checkpoint_path', None))
+    try:
+        trainer.fit(lightning_model, datamodule=datamodule,
+                    ckpt_path=cfg.get('checkpoint_path', None))
+        if trainer.state.finished:
+            print("[INFO] Training finished. Running inference with trained model...")
+            from infer import infer_and_submit_from_trained_model
+            infer_and_submit_from_trained_model(lightning_model, cfg)
+        else:
+            print("[INFO] Training did not finish (possibly interrupted). Skipping inference.")
+    except KeyboardInterrupt:
+        print("[INFO] Training interrupted by user. Skipping inference.")
 
 if __name__ == '__main__':
-    main()
+    import sys
+    config_path = sys.argv[1] if len(sys.argv) > 1 else 'config.yaml'
+    main(config_path)

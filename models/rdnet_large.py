@@ -2,8 +2,8 @@ import timm
 import torch
 import torch.nn as nn
 
-class RDNetBackbone(nn.Module):
-    def __init__(self, num_classes=1000, weights_path=None, model_name="rdnet_small.nv_in1k", **kwargs):
+class RDNet_largeBackbone(nn.Module):
+    def __init__(self, num_classes=1000, weights_path=None, model_name="rdnet_large.nv_in1k_ft_in1k_384", **kwargs):
         super().__init__()
         self.model = timm.create_model(
             model_name,
