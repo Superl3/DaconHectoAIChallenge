@@ -11,6 +11,7 @@ from seed_utils import seed_everything
 from model import get_lightning_model_from_config
 from datamodule import CarDataModule, get_callbacks_from_config
 from pytorch_lightning.tuner import Tuner
+from infer import infer_and_submit
 
 torch.set_float32_matmul_precision('medium')  # Tensor Core 최적화
 
@@ -97,7 +98,7 @@ def main():
         #profiler="simple",
         gradient_clip_val=cfg.get('gradient_clip_val', 1.0),
     )
-
+    
     # if cfg.get('auto_scale_batch_size', False):
     #     tuner = Tuner(trainer)
     #     # mode는 'power'(기본, 지수적으로 증가) 또는 'binsearch'(이진탐색) 중 선택
@@ -112,8 +113,23 @@ def main():
     #     # 모델에 적용
     #     lightning_model.hparams.learning_rate = lr_finder.suggestion()
 
-    trainer.fit(lightning_model, datamodule=datamodule,
-                ckpt_path=cfg.get('checkpoint_path', None))
+    try:
+        trainer.fit(lightning_model, datamodule=datamodule,
+                    ckpt_path=cfg.get('checkpoint_path', None))
+        # 학습이 정상적으로 끝난 경우에만 자동 추론
+        if trainer.state.finished:  # 학습이 정상 종료된 경우
+            print("[INFO] Training finished. Running inference with infer_config.yaml...")
+            from utils import load_config as load_infer_config
+            infer_cfg = load_infer_config('infer_config.yaml')
+            # config.yaml을 다시 불러서 config 우선 세팅
+            cfg = load_config()
+            # infer_and_submit에 infer_cfg를 넘김
+            from infer import infer_and_submit
+            infer_and_submit(infer_cfg)
+        else:
+            print("[INFO] Training did not finish (possibly interrupted). Skipping inference.")
+    except KeyboardInterrupt:
+        print("[INFO] Training interrupted by user. Skipping inference.")
 
 if __name__ == '__main__':
     main()

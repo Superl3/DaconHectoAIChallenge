@@ -120,9 +120,8 @@ def save_submission(results, cfg):
     print('Submission file saved as baseline_submission.csv')
     return submission
 
-def infer_and_submit():
-    print("[STEP 1] Loading config and setting seed...")
-    cfg = load_config('infer_config.yaml')
+def infer_and_submit(cfg):
+    print("[STEP 1] Setting seed...")
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     seed_everything(cfg['seed'])
     print("[STEP 2] Preparing datasets...")
@@ -139,4 +138,6 @@ def infer_and_submit():
     return submission
 
 if __name__ == '__main__':
-    infer_and_submit()
+    from utils import load_config
+    infer_cfg = load_config('infer_config.yaml')
+    infer_and_submit(infer_cfg)
