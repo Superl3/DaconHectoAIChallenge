@@ -18,25 +18,21 @@ num_classes: -1
 wandb:
   entity: 'Dacon_Car'
   project: 'car-classification'
-  name: 'rdnet_base_0.2_plateau'
+  name: 'rdnet_base_grayscale_0.2_plateau'
 use_swa: false
 auto_scale_batch_size: true
 gradient_clip_val: 1.0
 
-greyscale: false  # <-- 이 줄 추가
-
 # Early stopping
-# (아래 세 줄은 greyscale: true일 때만 포함)
-# early_stopping_monitor: val_logloss
-# early_stopping_patience: 4
-# early_stopping_mode: min
+early_stopping_monitor: val_logloss
+early_stopping_patience: 4
+early_stopping_mode: min
 early_stopping_min_delta: 0.0
 
 # Checkpoint
-# (아래 세 줄은 greyscale: true일 때만 포함)
-# checkpoint_dir: C:/Users/bug95/DaconHectoAIChallenge
-# checkpoint_monitor: val_logloss
-# checkpoint_save_top_k: 1
+checkpoint_dir: C:/Users/bug95/DaconHectoAIChallenge
+checkpoint_monitor: val_logloss
+checkpoint_save_top_k: 1
 checkpoint_mode: min
 checkpoint_filename: best_model
 
@@ -62,3 +58,5 @@ Img_Mix: False
 mixmethod: snapmix
 prob: 0.5
 beta: 5
+
+greyscale: True
