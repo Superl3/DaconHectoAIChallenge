@@ -14,7 +14,7 @@ from torch.nn.modules.batchnorm import _BatchNorm
 
 # LightningModule: 백본을 주입받아 사용
 class ClassificationLightningModule(pl.LightningModule):
-    def __init__(self, model: nn.Module, learning_rate=1e-4, cfg=None):
+    def __init__(self, model: nn.Module, class_names=None, cfg=None):
         super().__init__()
         self.model = model
         self.save_hyperparameters(ignore=['model'])
@@ -22,7 +22,7 @@ class ClassificationLightningModule(pl.LightningModule):
         self.automatic_optimization = True
         self.label_smoothing = float(self.cfg.get('label_smoothing', 0.05))
         self.criterion = self.CrossEntropyLoss
-
+        self.class_names = class_names if class_names is not None else []
     def forward(self, x):
         return self.model(x)
 
@@ -59,10 +59,41 @@ class ClassificationLightningModule(pl.LightningModule):
             print(f"loss: {loss}")
             raise ValueError('NaN/Inf detected in val loss!')
         acc = (logits.argmax(dim=1) == labels).float().mean()
-        #print(f"[Val] Epoch={self.current_epoch} Batch={batch_idx} Loss={loss.item():.6f} Acc={acc.item():.4f}")
+        probs = torch.softmax(logits, dim=1)
+        # outputs를 인스턴스 변수에 저장 (Lightning 2.x 권장)
+        if not hasattr(self, '_val_outputs'):
+            self._val_outputs = []
+        self._val_outputs.append({'probs': probs.detach().cpu(), 'labels': labels.detach().cpu()})
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_acc', acc, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return {'val_loss': loss, 'val_acc': acc}
+
+    def on_validation_epoch_end(self):
+        # Lightning 2.x: outputs를 인스턴스 변수에서 꺼내서 사용
+        if not hasattr(self, '_val_outputs') or not self._val_outputs:
+            return
+        all_probs = torch.cat([o['probs'] for o in self._val_outputs], dim=0).numpy()
+        all_labels = torch.cat([o['labels'] for o in self._val_outputs], dim=0).numpy()
+        class_list = self.class_names if hasattr(self, 'class_names') else [str(i) for i in range(all_probs.shape[1])]
+        import pandas as pd
+        import numpy as np
+        from sklearn.metrics import log_loss
+        submission_df = pd.DataFrame(all_probs, columns=class_list)
+        submission_df['ID'] = np.arange(len(submission_df))
+        answer_df = pd.DataFrame({'ID': np.arange(len(all_labels)), 'label': [class_list[l] for l in all_labels]})
+        try:
+            probs = submission_df[class_list].values
+            probs = probs / probs.sum(axis=1, keepdims=True)
+            y_pred = np.clip(probs, 1e-15, 1 - 1e-15)
+            true_labels = answer_df['label'].tolist()
+            true_idx = [class_list.index(lbl) for lbl in true_labels]
+            logloss = log_loss(true_idx, y_pred, labels=list(range(len(class_list))))
+        except Exception as e:
+            print(f"[WARN] logloss 계산 실패: {e}")
+            logloss = float('nan')
+        self.log('val_logloss', logloss, prog_bar=True, logger=True)
+        # outputs 초기화
+        self._val_outputs = []
 
     def configure_optimizers(self):
         cfg = self.cfg if self.cfg is not None else {}
@@ -82,22 +113,49 @@ class ClassificationLightningModule(pl.LightningModule):
         # Scheduler 선택
         if scheduler_name == 'cosine':
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.trainer.max_epochs)
+            scheduler_dict = {
+                'scheduler': scheduler,
+                'interval': 'epoch',
+                'frequency': 1
+            }
         elif scheduler_name == 'step':
-            step_size = int(cfg.get('step_size', 10))
-            gamma = float(cfg.get('gamma', 0.1))
+            step_size = int(cfg.get('step_size', 5))
+            gamma = float(cfg.get('gamma', 0.2))
             scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
+            scheduler_dict = {
+                'scheduler': scheduler,
+                'interval': 'epoch',
+                'frequency': 1
+            }
+        elif scheduler_name == 'reduce_on_plateau':
+            patience = int(cfg.get('plateau_patience', 3))
+            factor = float(cfg.get('plateau_factor', 0.2))
+            min_lr = float(cfg.get('plateau_min_lr', 1e-7))
+            mode = cfg.get('plateau_mode', 'min')
+            monitor = cfg.get('plateau_monitor', 'val_loss')
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer,
+                mode=mode,
+                factor=factor,
+                patience=patience,
+                min_lr=min_lr,
+                verbose=True,
+            )
+            scheduler_dict = {
+                'scheduler': scheduler,
+                'monitor': monitor,
+                'interval': 'epoch',
+                'frequency': 1
+            }
         elif scheduler_name == 'none':
             scheduler = None
+            scheduler_dict = None
         else:
             raise ValueError(f"Unknown scheduler: {scheduler_name}")
-        if scheduler is not None:
+        if scheduler_dict is not None:
             return {
                 'optimizer': optimizer,
-                'lr_scheduler': {
-                    'scheduler': scheduler,
-                    'interval': 'epoch',
-                    'frequency': 1
-                }
+                'lr_scheduler': scheduler_dict
             }
         else:
             return {'optimizer': optimizer}
@@ -119,13 +177,14 @@ def cosine_anneal_schedule(t, nb_epoch, lr):
 
     return float(lr / 2 * cos_out)
 
-def get_lightning_model_from_config(cfg, num_classes=None):
+def get_lightning_model_from_config(cfg, class_names=None):
     """
     cfg['backbone']에 해당하는 백본을 models/ 폴더에서 import하여
     ClassificationLightningModule에 주입해 반환합니다.
     num_classes가 None이면 cfg['num_classes'] 사용.
     """
     backbone_name = cfg.get('backbone', 'tresnet')
+    num_classes = len(class_names)
     if num_classes is None:
         num_classes = cfg.get('num_classes', 1000)
     weights_path = cfg.get('pretrained_weights', None)
@@ -144,7 +203,7 @@ def get_lightning_model_from_config(cfg, num_classes=None):
     #backbone = backbone.to(memory_format=torch.channels_last)
     # LightningModule import
     
-    lightning_model = ClassificationLightningModule(backbone, cfg=cfg)
+    lightning_model = ClassificationLightningModule(backbone, class_names, cfg=cfg)
     return lightning_model
 
 def disable_running_stats(model):

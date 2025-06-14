@@ -63,7 +63,7 @@ def main(config_path='config.yaml'):
     datamodule.setup()
     num_classes = len(datamodule.class_names)
 
-    lightning_model = get_lightning_model_from_config(cfg, num_classes)
+    lightning_model = get_lightning_model_from_config(cfg, datamodule.class_names)
     #lightning_model = torch.compile(lightning_model)
     precision_mode = '16-mixed'
     

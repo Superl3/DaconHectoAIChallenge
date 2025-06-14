@@ -18,20 +18,20 @@ num_classes: -1
 wandb:
   entity: 'Dacon_Car'
   project: 'car-classification'
-  name: 'rdnet_smoothing_0.2'
+  name: 'rdnet_0.2_plateau'
 use_swa: false
 auto_scale_batch_size: true
 gradient_clip_val: 1.0
 
 # Early stopping
-early_stopping_monitor: val_loss
-early_stopping_patience: 3
+early_stopping_monitor: val_logloss
+early_stopping_patience: 4
 early_stopping_mode: min
 early_stopping_min_delta: 0.0
 
 # Checkpoint
 checkpoint_dir: C:/Users/bug95/DaconHectoAIChallenge
-checkpoint_monitor: val_loss
+checkpoint_monitor: val_logloss
 checkpoint_save_top_k: 1
 checkpoint_mode: min
 checkpoint_filename: best_model
@@ -39,10 +39,16 @@ checkpoint_filename: best_model
 accumulate_grad_batches : 1
 learning_rate: 5e-5
 optimizer: adamw
-scheduler: step
+scheduler: reduce_on_plateau  # step, cosine, reduce_on_plateau 중 선택
 weight_decay: 0.01
-label_smoothing: 0.01
-step_size: 10   # StepLR용
-gamma: 0.1      # StepLR용
+label_smoothing: 0.02
+step_size: 5   # StepLR용 (15에폭 내 2~3회 감소)
+gamma: 0.2      # StepLR용
+# ReduceLROnPlateau용 옵션
+plateau_patience: 2
+plateau_factor: 0.2
+plateau_min_lr: 1e-7
+plateau_mode: min
+plateau_monitor: val_logloss
 
-checkpoint_path: best_model-v5.ckpt
+checkpoint_path:
