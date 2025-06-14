@@ -4,12 +4,12 @@ test_root: './upscaled/test'
 pretrained_weights: 
 sample_submission: 'open/sample_submission.csv'
 backbone: 'rdnet'
-img_size: 1024
-crop_size: 900
-train_batch_size: 6
-val_batch_size: 6
-train_num_workers: 6
-val_num_workers: 6
+img_size: 480
+crop_size: 384
+train_batch_size: 32
+val_batch_size: 32
+train_num_workers: 12
+val_num_workers: 12
 num_workers: 6  # (개별 값이 없을 때 fallback)
 batch_size: 6 # (개별 값이 없을 때 fallback)
 epochs: 30 
@@ -18,7 +18,7 @@ num_classes: -1
 wandb:
   entity: 'Dacon_Car'
   project: 'car-classification'
-  name: 'rdnet_1024_900_step'
+  name: 'rdnet_smoothing_0.2'
 use_swa: false
 auto_scale_batch_size: true
 gradient_clip_val: 1.0
@@ -36,13 +36,13 @@ checkpoint_save_top_k: 1
 checkpoint_mode: min
 checkpoint_filename: best_model
 
-accumulate_grad_batches : 8
+accumulate_grad_batches : 1
 learning_rate: 5e-5
 optimizer: adamw
 scheduler: step
 weight_decay: 0.01
-label_smoothing: 0.05
+label_smoothing: 0.01
 step_size: 10   # StepLR용
 gamma: 0.1      # StepLR용
 
-checkpoint_path: best_model-v2.ckpt
+checkpoint_path: best_model-v5.ckpt
