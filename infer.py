@@ -138,6 +138,8 @@ def infer_and_submit(cfg):
     return submission
 
 if __name__ == '__main__':
+    import sys
     from utils import load_config
-    infer_cfg = load_config('infer_config.yaml')
+    config_path = sys.argv[1] if len(sys.argv) > 1 else 'infer_config.yaml'
+    infer_cfg = load_config(config_path)
     infer_and_submit(infer_cfg)
