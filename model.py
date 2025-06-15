@@ -159,6 +159,16 @@ class ClassificationLightningModule(pl.LightningModule):
                 'interval': 'epoch',
                 'frequency': 1
             }
+        elif scheduler_name == 'linear_warmup_cosine':
+            warmup_epochs = int(cfg.get('warmup_epochs', 2))
+            max_epochs = self.trainer.max_epochs
+            eta_min = float(cfg.get('eta_min', 1e-6))
+            scheduler = LinearWarmupCosineAnnealingLR(optimizer, warmup_epochs, max_epochs, eta_min=eta_min)
+            scheduler_dict = {
+                'scheduler': scheduler,
+                'interval': 'epoch',
+                'frequency': 1
+            }
         elif scheduler_name == 'none':
             scheduler = None
             scheduler_dict = None
@@ -232,3 +242,29 @@ def enable_running_stats(model):
             module.momentum = module.backup_momentum
 
     model.apply(_enable)
+
+
+
+from torch.optim.lr_scheduler import _LRScheduler
+import math
+
+class LinearWarmupCosineAnnealingLR(_LRScheduler):
+    def __init__(self, optimizer, warmup_epochs, max_epochs, eta_min=0, last_epoch=-1):
+        self.warmup_epochs = warmup_epochs
+        self.max_epochs = max_epochs
+        self.eta_min = eta_min
+        super().__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        if self.last_epoch < self.warmup_epochs:
+            return [
+                base_lr * float(self.last_epoch + 1) / self.warmup_epochs
+                for base_lr in self.base_lrs
+            ]
+        else:
+            return [
+                self.eta_min + (base_lr - self.eta_min)
+                * 0.5
+                * (1 + math.cos(math.pi * (self.last_epoch - self.warmup_epochs) / (self.max_epochs - self.warmup_epochs)))
+                for base_lr in self.base_lrs
+            ]
