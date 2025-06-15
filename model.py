@@ -162,7 +162,7 @@ class ClassificationLightningModule(pl.LightningModule):
         elif scheduler_name == 'linear_warmup_cosine':
             warmup_epochs = int(cfg.get('warmup_epochs', 2))
             max_epochs = self.trainer.max_epochs
-            eta_min = float(cfg.get('eta_min', 1e-6))
+            eta_min = float(cfg.get('eta_min', 5e-7))
             scheduler = LinearWarmupCosineAnnealingLR(optimizer, warmup_epochs, max_epochs, eta_min=eta_min)
             scheduler_dict = {
                 'scheduler': scheduler,

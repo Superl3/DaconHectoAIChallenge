@@ -1,0 +1,13 @@
+seed: 42
+batch_size: 16
+num_workers: 8
+img_size: 480
+crop_size: 384
+train_root: upscaled/train
+test_root: upscaled/test
+sample_submission: open/sample_submission.csv
+checkpoint_path: convnext_best.ckpt
+backbone: 'convnext'
+tta:
+  multiscale: [384, 432, 480]
+  flip: true

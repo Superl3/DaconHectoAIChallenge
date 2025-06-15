@@ -1,10 +1,9 @@
-﻿*.jpg
+*.jpg
 *.png
-*.csv
 SwinIR
 wandb
 TResNet
 __pycache__
 *.ipynb
 *.pth
-*.ckpt
+*.ckpt  

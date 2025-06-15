@@ -1,12 +1,13 @@
 seed: 42
-batch_size: 32
-num_workers: 16
-crop_size: 384
+batch_size: 56
+num_workers: 12
+img_size: 280
+crop_size: 224
 train_root: upscaled/train
 test_root: upscaled/test
 sample_submission: open/sample_submission.csv
-checkpoint_path: rdnet_base_grayscale_rop_label002.ckpt
-backbone: 'rdnet_base'
-# tta:
-#   multiscale: [384, 416, 448]
-#   flip: true
+checkpoint_path: swin_base.ckpt
+backbone: 'swin_base'
+tta:
+  multiscale: [224]
+  flip: true
